@@ -1,0 +1,131 @@
+---
+title: "group project"
+author: "Berniss"
+date: "2023-10-24"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(dplyr)
+library(ggplot2)
+library(tidyverse)
+tuesdata <- tidytuesdayR::tt_load('2022-07-05')
+tuesdata <- tidytuesdayR::tt_load(2022, week = 27)
+
+rent <- tuesdata$rent
+rent
+new_construction <- tuesdata$new_construction
+new_construction
+```
+
+```{r}
+rent_summary <- rent %>%
+  filter(beds == 2) %>%
+  select(year, county, price) %>%
+  group_by(year, county) %>%
+  summarize(avg_price = mean(price)) %>%
+  mutate(county = stringr::str_to_title(county))
+
+construction_summary <- new_construction %>%
+  select(year, county, totalproduction) %>%
+  group_by(year, county) %>%
+  summarize(total_production = sum(totalproduction)) %>%
+  mutate(county = gsub(" County", "", county))
+
+merged_data <- left_join(rent_summary, construction_summary, by = c("year", "county"))
+merged_data <- na.omit(merged_data)
+
+rent_summary
+construction_summary
+merged_data
+```
+## Visualisation 1: Scatterplot
+```{r}
+library(ggplot2)
+library(ggthemes)
+
+ggplot(merged_data, aes(x = year, y = avg_price)) +
+  geom_point(aes(size = total_production, color = county), alpha = 0.3) +
+  geom_smooth(method = "loess", se = FALSE, size = 0.5, color = "maroon") +
+  scale_size_continuous(range = c(1, 8)) +
+  labs(title = "Rent Prices vs. New Construction in San Francisco Counties",
+       x = "Year",
+       y = "Average Rent Price",
+       size = "Total Production of Housing",
+       color = "County") +
+  theme_calc() +
+  facet_wrap(~county, ncol = 3)
+
+
+ggplot(merged_data, aes(x = year, y = avg_price)) +
+  geom_point(aes(color = county), alpha = 0.3) +
+  geom_smooth(method = "loess", se = FALSE, size = 0.5, color = "maroon") +
+  scale_size_continuous(range = c(1, 8)) +
+  labs(title = "Rent Prices vs. New Construction in San Francisco Counties",
+       x = "Year",
+       y = "Average Rent Price",
+       color = "County") +
+  geom_line(aes(year,total_production),linewidth = 0.5) +
+  theme_calc() +
+  facet_wrap(~county, ncol = 3)
+
+
+ggplot(merged_data, aes(x = year, y = avg_price)) +
+  geom_point(aes(color = county), alpha = 0.3) +
+  geom_smooth(method = "loess", se = FALSE, size = 0.5, color = "maroon") +
+  scale_size_continuous(range = c(1, 8)) +
+  geom_line( aes(y=total_production/0.5)) +
+  scale_y_continuous(
+    name = "Average Rent Price",
+    sec.axis = sec_axis(~.*0.5, name="Number of New Construction")
+  )+
+  labs(title = "Rent Prices vs. New Construction in San Francisco Counties",
+       x = "Year",
+       color = "County")+
+  theme_calc() +
+  facet_wrap(~county, ncol = 3)
+
+
+ggplot(merged_data, aes(x = year, y = avg_price)) +
+  geom_col( aes(y=total_production, fill = county),show.legend = FALSE) +
+  geom_point(aes(color = county), alpha = 0.3) +
+  geom_smooth(method = "loess", se = FALSE, size = 0.5, color = "maroon") +
+  scale_size_continuous(range = c(1, 8)) +
+  scale_y_continuous(
+    name = "Average Rent Price",
+    sec.axis = sec_axis(~.*1, name="Number of New Construction")
+  )+
+  labs(title = "Rent Prices vs. New Construction in San Francisco Counties",
+       x = "Year",
+       color = "County")+
+  theme_calc() +
+  facet_wrap(~county, ncol = 3)
+
+```
+
+## Visualisation 3: Heatmap
+```{r}
+heatmap_rent = rent %>%
+	arrange(county, year) %>%
+	group_by(county) %>%
+	mutate(rent_price_change_diff = price - lag(price)) %>%
+	ungroup()
+
+heatmap_rent
+
+ggplot(heatmap_rent, aes(x = year, y = county, fill = rent_price_change_diff)) +
+	geom_tile() +
+	scale_fill_gradient(low = "lightblue", high = "maroon") +
+	labs(
+    	title = "Rent Price Changes Across County",
+    	x = "Year",
+    	y = "County",
+    	fill = "Rent Price Change Difference(USD)"
+	) +
+	theme_minimal() +
+	theme(axis.text.x = element_text(angle = 90, hjust = 1))
+```
